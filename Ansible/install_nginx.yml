@@ -1,0 +1,22 @@
+---
+- hosts: all
+  become: yes # Run tasks with sudo
+  
+  tasks:
+    - name: Update APT package cache
+      # This is like running "apt-get update"
+      # It's a good practice to run this before installing.
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600 # Only update if cache is > 1 hour old
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present # "present" means "install if not installed"
+
+    - name: Start and enable the Nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
