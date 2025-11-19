@@ -50,7 +50,7 @@ jobs:
           echo "Instance IP from Terraform: $ip"
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-            - name: Install Ansible
+      - name: Install Ansible
         run: |
           sudo apt-get update
           sudo apt-get install -y ansible
