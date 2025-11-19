@@ -1,4 +1,4 @@
-name: Deploy Terraform on OCI
+name: Deploy Terraform on OCI (minimal)
 
 on:
   push:
@@ -9,20 +9,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      TF_WORKING_DIR: Terraform
+      TF_WORKING_DIR: .                # set to repo root; change to exact folder name if needed (case-sensitive)
       OCI_KEY_FILE: /tmp/oci_key.pem
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write OCI private key to runner
+      - name: Write OCI API private key
         run: |
-          # preserve newlines reliably
           printf '%s\n' "${{ secrets.OCI_PRIVATE_KEY }}" > "$OCI_KEY_FILE"
           chmod 600 "$OCI_KEY_FILE"
 
-      - name: Export OCI env vars for Terraform
+      - name: Export OCI env vars
         run: |
           echo "OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
           echo "OCI_USER=${{ secrets.OCI_USER_OCID }}" >> $GITHUB_ENV
