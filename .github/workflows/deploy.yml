@@ -43,7 +43,7 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-              - name: Get instance IP from Terraform output
+      - name: Get instance IP from Terraform output
         run: |
           ip=$(terraform output -raw instance_public_ip)
           echo "INSTANCE_IP=$ip" >> $GITHUB_ENV
