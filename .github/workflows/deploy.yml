@@ -1,4 +1,4 @@
-name: Deploy OCI Instance with Terraform and Configure with Ansible
+name: Deploy Terraform on OCI
 
 on:
   push:
@@ -6,89 +6,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  terraform_ansible_deploy:
+  deploy:
     runs-on: ubuntu-latest
-    
-    # Define environment variables
     env:
       TF_WORKING_DIR: Terraform
-      ANSIBLE_WORKING_DIR: Ansible
-      SSH_KEY_FILE: /tmp/oci_ssh_key.pem # Defines a temporary file path for the key
+      OCI_KEY_FILE: /tmp/oci_key.pem
 
     steps:
-      - name: Checkout Repository Code
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Write OCI private key to runner
+        run: |
+          # preserve newlines reliably
+          printf '%s\n' "${{ secrets.OCI_PRIVATE_KEY }}" > "$OCI_KEY_FILE"
+          chmod 600 "$OCI_KEY_FILE"
+
+      - name: Export OCI env vars for Terraform
+        run: |
+          echo "OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
+          echo "OCI_USER=${{ secrets.OCI_USER_OCID }}" >> $GITHUB_ENV
+          echo "OCI_FINGERPRINT=${{ secrets.OCI_FINGERPRINT }}" >> $GITHUB_ENV
+          echo "OCI_REGION=${{ secrets.OCI_REGION }}" >> $GITHUB_ENV
+          echo "OCI_KEY_FILE=$OCI_KEY_FILE" >> $GITHUB_ENV
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
 
-      # --- SETUP: Write Private Key for SSH/Ansible (Must be before OCI Auth) ---
-      # This writes the secret content to a file, which Ansible needs later.
-      - name: Write SSH Private Key File
-        run: |
-          # Use 'echo -e' to handle multi-line secrets properly
-          echo -e "${{ secrets.OCI_PRIVATE_KEY }}" > ${{ env.SSH_KEY_FILE }}
-          chmod 600 ${{ env.SSH_KEY_FILE }} 
-      
-      # --- OCI AUTHENTICATION STEP (For Terraform) ---
-      - name: OCI Authentication using API Key
-        uses: oracle/oci-actions@v1
-        with:
-          user-ocid: ${{ secrets.OCI_USER_OCID }}
-          tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          private-key: ${{ secrets.OCI_PRIVATE_KEY }}
-          region: ${{ secrets.OCI_REGION }}
-          
-      # --- SETUP: Install Ansible on the Runner (Control Node) ---
-      - name: Install Ansible on Runner
-        run: pip install ansible
-
-      # --- TERRAFORM PROVISIONING STEPS ---
       - name: Terraform Init
         run: terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Terraform Validate & Plan
-        run: |
-          terraform validate
-          terraform plan
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
-
-      - name: Terraform Apply & Capture IP
-        id: apply_and_output
-        run: |
-          terraform apply -auto-approve
-          INSTANCE_IP=$(terraform output -raw instance_public_ip)
-          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
-        working-directory: ${{ env.TF_WORKING_DIR }} 
-        
-      # --- ANSIBLE CONFIGURATION STEP ---
-      - name: Wait for SSH and Run Ansible Playbook
-        id: ansible_config
-        run: |
-          INSTANCE_IP="${{ steps.apply_and_output.outputs.instance_ip }}"
-          echo "Checking SSH connectivity to $INSTANCE_IP..."
-          
-          # 1. Wait for SSH availability using a robust retry loop
-          MAX_RETRIES=12 # Increased retries to 12 (2 minutes)
-          RETRY_COUNT=0
-          
-          until ssh -i ${{ env.SSH_KEY_FILE }} -o StrictHostKeyChecking=no -o ConnectTimeout=5 opc@$INSTANCE_IP exit; do
-            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-              echo "Error: SSH not available after $MAX_RETRIES retries."
-              exit 1
-            fi
-            echo "SSH not yet available. Retrying in 10s..."
-            sleep 10
-            RETRY_COUNT=$((RETRY_COUNT+1))
-          done
-          
-          echo "SSH connection established. Running configuration playbook..."
-          
-          # 2. Run Ansible Playbook
-          ansible-playbook \
-            -i "${INSTANCE_IP}," \
-            --user opc \
-            --private-key ${{ env.SSH_KEY_FILE }} \
-            ${{ env.ANSIBLE_WORKING_DIR }}/install_nginx.yml
