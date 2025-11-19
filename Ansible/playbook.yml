@@ -1,0 +1,36 @@
+---
+- name: Test Ansible connectivity and install tools
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    test_pkg: git
+
+  tasks:
+    - name: Ping the host
+      ansible.builtin.ping:
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install test package (git)
+      ansible.builtin.apt:
+        name: "{{ test_pkg }}"
+        state: present
+
+    - name: Create a test file so we can see it ran
+      ansible.builtin.copy:
+        dest: /tmp/ansible-test.txt
+        content: "Ansible ran on {{ ansible_date_time.iso8601 }}\n"
+
+    - name: Check git version
+      ansible.builtin.command: git --version
+      register: git_ver
+      changed_when: false
+
+    - name: Show git version in Ansible output
+      ansible.builtin.debug:
+        var: git_ver.stdout
