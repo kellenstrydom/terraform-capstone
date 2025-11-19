@@ -21,7 +21,7 @@ jobs:
           printf '%s\n' "${{ secrets.OCI_PRIVATE_KEY }}" > "$OCI_KEY_FILE"
           chmod 600 "$OCI_KEY_FILE"
 
-            - name: Export OCI env vars
+      - name: Export OCI env vars
         run: |
           # Values the OCI Terraform provider actually understands:
           echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
