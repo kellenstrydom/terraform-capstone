@@ -33,10 +33,15 @@ jobs:
 
       - name: Debug Environment Variables
         run: |
-          echo "OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}"
-          echo "OCI_USER=${{ secrets.OCI_USER_OCID }}"
-          echo "OCI_REGION=${{ secrets.OCI_REGION }}"
-          echo "TF_VAR_compartment_id=${{ secrets.OCI_COMPARTMENT_OCID }}"
+          OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}
+          OCI_USER=${{ secrets.OCI_USER_OCID }}
+          OCI_REGION=${{ secrets.OCI_REGION }}
+          TF_VAR_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_OCID }}
+          
+          echo "OCI_TENANCY=$OCI_TENANCY"
+          echo "OCI_USER=$OCI_USER"
+          echo "OCI_REGION=$OCI_REGION"
+          echo "TF_VAR_COMPARTMENT_ID=$TF_VAR_COMPARTMENT_ID"
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
