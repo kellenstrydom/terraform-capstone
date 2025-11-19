@@ -27,7 +27,7 @@ jobs:
           echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
           echo "OCI_USER_OCID=${{ secrets.OCI_USER_OCID }}" >> $GITHUB_ENV
           echo "OCI_FINGERPRINT=${{ secrets.OCI_FINGERPRINT }}" >> $GITHUB_ENV
-          echo "OCI_REGION=${{ secrets.OCI_REGION }}" >> $GITHUB_ENV
+          echo "OCI_REGION=eu-frankfurt-1" >> $GITHUB_ENV
           echo "OCI_PRIVATE_KEY_PATH=$OCI_KEY_FILE" >> $GITHUB_ENV
 
           # Terraform input variables

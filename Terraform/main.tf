@@ -13,7 +13,7 @@ variable "compartment_id" {
 
 variable "region" {
   type    = string
-  default = "af-johannesburg-1"
+  default = "eu-frankfurt-1"
 }
 
 variable "ssh_public_key" {
