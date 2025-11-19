@@ -51,11 +51,10 @@ resource "oci_core_instance" "my_first_instance" {
   # CHANGED: Arm shape
   shape = "VM.Standard.A1.Flex"
 
-  # CHANGED: must explicitly set OCPUs + memory for Flex shapes
-  shape_config {
-    ocpus         = 1
-    memory_in_gbs = 6
-  }
+shape_config {
+  ocpus         = 1
+  memory_in_gbs = 1
+}
 
   source_details {
     source_type = "image"
