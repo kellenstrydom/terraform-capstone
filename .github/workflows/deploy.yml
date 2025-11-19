@@ -49,4 +49,4 @@ jobs:
             -i "$INSTANCE_IP," \
             -u ubuntu \
             --private-key /tmp/ansible_key.pem \
-            ansible/playbook.yml
+            Ansible/playbook.yml
