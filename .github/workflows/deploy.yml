@@ -6,15 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  terraform_ansible_deploy: # Renamed job for clarity
+  terraform_ansible_deploy:
     runs-on: ubuntu-latest
     
     # Define environment variables
     env:
-      # Set the working directory once for all subsequent runs
       TF_WORKING_DIR: Terraform
-      # Set the Ansible directory for later
       ANSIBLE_WORKING_DIR: Ansible
+      SSH_KEY_FILE: /tmp/oci_ssh_key.pem # Defines a temporary file path for the key
 
     steps:
       - name: Checkout Repository Code
@@ -23,8 +22,7 @@ jobs:
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
 
-      # --- OCI AUTHENTICATION STEP ---
-      # This step is perfect as written, using your GitHub Secrets
+      # --- OCI AUTHENTICATION STEP (For Terraform) ---
       - name: OCI Authentication using API Key
         uses: oracle-actions/auth-oci@v1
         with:
@@ -34,25 +32,35 @@ jobs:
           private-key: ${{ secrets.OCI_PRIVATE_KEY }}
           region: ${{ secrets.OCI_REGION }}
           
-      # -------------------------------
-          
+      # -----------------------------------------------
+      
+      # --- SETUP: Write Private Key for SSH/Ansible ---
+      # This step writes the secret content to a file, which Ansible needs.
+      - name: Write SSH Private Key File
+        run: |
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ${{ env.SSH_KEY_FILE }}
+          chmod 600 ${{ env.SSH_KEY_FILE }} # Set secure permissions
+      
+      # --- SETUP: Install Ansible on the Runner (Control Node) ---
+      - name: Install Ansible on Runner
+        run: pip install ansible
+
+      # --- TERRAFORM PROVISIONING STEPS ---
       - name: Terraform Init
         run: terraform init
-        working-directory: ${{ env.TF_WORKING_DIR }} # Uses the ENV variable
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: ${{ env.TF_WORKING_DIR }} # 👈 FIX 1: Apply working directory
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Plan
         run: terraform plan
-        working-directory: ${{ env.TF_WORKING_DIR }} # 👈 FIX 1: Apply working directory
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
-      # --- PROVISIONING AND IP CAPTURE ---
       - name: Terraform Apply & Capture IP
-        id: apply_and_output # Assign an ID to this step to access its outputs
+        id: apply_and_output
         run: |
-          # The '-auto-approve' flag is necessary in a CI environment
           terraform apply -auto-approve
           
           # Capture the public IP outputted from your main.tf
@@ -62,20 +70,34 @@ jobs:
           echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
         working-directory: ${{ env.TF_WORKING_DIR }} 
         
-      # -----------------------------------
-      
       # --- ANSIBLE CONFIGURATION STEP ---
       - name: Wait for SSH and Run Ansible Playbook
-        uses: appleboy/ssh-action@v1.0.3 # 👈 NEW STEP: Action to run SSH commands
-        with:
-          host: ${{ steps.apply_and_output.outputs.instance_ip }} # Get the IP from the previous step
-          username: opc # Default user for Oracle Linux/Ubuntu images
-          key: ${{ secrets.OCI_PRIVATE_KEY }} # Use the private key for SSH login
-          script_stop: true # Stop the script on first error
-          script: |
-            echo "Waiting 60 seconds for VM to fully initialize SSH service..."
-            sleep 60 
-            
-            # The -i flag dynamically creates the inventory using the IP
-            # The comma is necessary to treat it as a single host entry.
-            ansible-playbook -i "${{ steps.apply_and_output.outputs.instance_ip }}," ${{ env.ANSIBLE_WORKING_DIR }}/install_nginx.yml
+        id: ansible_config
+        run: |
+          INSTANCE_IP="${{ steps.apply_and_output.outputs.instance_ip }}"
+          
+          echo "Checking SSH connectivity to $INSTANCE_IP..."
+          
+          # 1. Wait for SSH availability using a robust retry loop (more reliable than a long sleep)
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+          
+          # Use the temporary key file created earlier
+          until ssh -i ${{ env.SSH_KEY_FILE }} -o StrictHostKeyChecking=no -o ConnectTimeout=5 opc@$INSTANCE_IP exit; do
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "Error: SSH not available after $MAX_RETRIES retries."
+              exit 1
+            fi
+            echo "SSH not yet available. Retrying in 10s..."
+            sleep 10
+            RETRY_COUNT=$((RETRY_COUNT+1))
+          done
+          
+          echo "SSH connection established. Running configuration playbook..."
+          
+          # 2. Run Ansible Playbook from the GitHub Runner (Control Node)
+          ansible-playbook \
+            -i "${INSTANCE_IP}," \
+            --user opc \
+            --private-key ${{ env.SSH_KEY_FILE }} \
+            ${{ env.ANSIBLE_WORKING_DIR }}/install_nginx.yml
