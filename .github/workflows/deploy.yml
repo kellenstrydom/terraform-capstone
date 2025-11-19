@@ -32,7 +32,7 @@ jobs:
       
       # --- OCI AUTHENTICATION STEP (For Terraform) ---
       - name: OCI Authentication using API Key
-        uses: oracle-actions/auth-oci@v1 # <--- CHECK THIS LINE CAREFULLY
+        uses: oracle-oci/actions/auth@v1
         with:
           user-ocid: ${{ secrets.OCI_USER_OCID }}
           tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
