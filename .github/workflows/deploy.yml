@@ -21,27 +21,20 @@ jobs:
           printf '%s\n' "${{ secrets.OCI_PRIVATE_KEY }}" > "$OCI_KEY_FILE"
           chmod 600 "$OCI_KEY_FILE"
 
-      - name: Export OCI env vars
+            - name: Export OCI env vars
         run: |
-          echo "OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
-          echo "OCI_USER=${{ secrets.OCI_USER_OCID }}" >> $GITHUB_ENV
+          # Values the OCI Terraform provider actually understands:
+          echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
+          echo "OCI_USER_OCID=${{ secrets.OCI_USER_OCID }}" >> $GITHUB_ENV
           echo "OCI_FINGERPRINT=${{ secrets.OCI_FINGERPRINT }}" >> $GITHUB_ENV
           echo "OCI_REGION=${{ secrets.OCI_REGION }}" >> $GITHUB_ENV
-          echo "OCI_KEY_FILE=$OCI_KEY_FILE" >> $GITHUB_ENV
-          echo "TF_VAR_compartment_id=${{ secrets.OCI_COMPARTMENT_OCID }}" >> $GITHUB_ENV
-          echo "TF_VAR_ssh_public_key='${{ secrets.SSH_PUBLIC_KEY }}'" >> $GITHUB_ENV
+          echo "OCI_PRIVATE_KEY_PATH=$OCI_KEY_FILE" >> $GITHUB_ENV
 
-      - name: Debug Environment Variables
-        run: |
-          OCI_TENANCY=${{ secrets.OCI_TENANCY_OCID }}
-          OCI_USER=${{ secrets.OCI_USER_OCID }}
-          OCI_REGION=${{ secrets.OCI_REGION }}
-          TF_VAR_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_OCID }}
-          
-          echo "OCI_TENANCY=$OCI_TENANCY"
-          echo "OCI_USER=$OCI_USER"
-          echo "OCI_REGION=$OCI_REGION"
-          echo "TF_VAR_COMPARTMENT_ID=$TF_VAR_COMPARTMENT_ID"
+          # Regular Terraform input variables for your config:
+          echo "TF_VAR_compartment_id=${{ secrets.OCI_COMPARTMENT_OCID }}" >> $GITHUB_ENV
+          echo "TF_VAR_ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}" >> $GITHUB_ENV
+
+
 
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
