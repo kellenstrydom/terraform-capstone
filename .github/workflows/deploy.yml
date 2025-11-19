@@ -1,0 +1,81 @@
+name: Deploy OCI Instance with Terraform and Configure with Ansible
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  terraform_ansible_deploy: # Renamed job for clarity
+    runs-on: ubuntu-latest
+    
+    # Define environment variables
+    env:
+      # Set the working directory once for all subsequent runs
+      TF_WORKING_DIR: Terraform
+      # Set the Ansible directory for later
+      ANSIBLE_WORKING_DIR: Ansible
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+
+      # --- OCI AUTHENTICATION STEP ---
+      # This step is perfect as written, using your GitHub Secrets
+      - name: OCI Authentication using API Key
+        uses: oracle-actions/auth-oci@v1
+        with:
+          user-ocid: ${{ secrets.OCI_USER_OCID }}
+          tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          private-key: ${{ secrets.OCI_PRIVATE_KEY }}
+          region: ${{ secrets.OCI_REGION }}
+          
+      # -------------------------------
+          
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }} # Uses the ENV variable
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }} # 👈 FIX 1: Apply working directory
+
+      - name: Terraform Plan
+        run: terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }} # 👈 FIX 1: Apply working directory
+
+      # --- PROVISIONING AND IP CAPTURE ---
+      - name: Terraform Apply & Capture IP
+        id: apply_and_output # Assign an ID to this step to access its outputs
+        run: |
+          # The '-auto-approve' flag is necessary in a CI environment
+          terraform apply -auto-approve
+          
+          # Capture the public IP outputted from your main.tf
+          INSTANCE_IP=$(terraform output -raw instance_public_ip)
+          
+          # Set the IP as an output variable for the next step to use
+          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TF_WORKING_DIR }} 
+        
+      # -----------------------------------
+      
+      # --- ANSIBLE CONFIGURATION STEP ---
+      - name: Wait for SSH and Run Ansible Playbook
+        uses: appleboy/ssh-action@v1.0.3 # 👈 NEW STEP: Action to run SSH commands
+        with:
+          host: ${{ steps.apply_and_output.outputs.instance_ip }} # Get the IP from the previous step
+          username: opc # Default user for Oracle Linux/Ubuntu images
+          key: ${{ secrets.OCI_PRIVATE_KEY }} # Use the private key for SSH login
+          script_stop: true # Stop the script on first error
+          script: |
+            echo "Waiting 60 seconds for VM to fully initialize SSH service..."
+            sleep 60 
+            
+            # The -i flag dynamically creates the inventory using the IP
+            # The comma is necessary to treat it as a single host entry.
+            ansible-playbook -i "${{ steps.apply_and_output.outputs.instance_ip }}," ${{ env.ANSIBLE_WORKING_DIR }}/install_nginx.yml
