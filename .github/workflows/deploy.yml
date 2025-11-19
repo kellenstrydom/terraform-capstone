@@ -43,10 +43,29 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
 
+              - name: Get instance IP from Terraform output
+        run: |
+          ip=$(terraform output -raw instance_public_ip)
+          echo "INSTANCE_IP=$ip" >> $GITHUB_ENV
+          echo "Instance IP from Terraform: $ip"
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+            - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      - name: Write SSH private key for Ansible
+        run: |
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ansible_key.pem
+          chmod 600 /tmp/ansible_key.pem
+
       - name: Run Ansible playbook
         run: |
+          echo "Using INSTANCE_IP=$INSTANCE_IP"
           ansible-playbook \
             -i "$INSTANCE_IP," \
             -u ubuntu \
             --private-key /tmp/ansible_key.pem \
-            Ansible/playbook.yml
+            ansible/playbook.yml
+
