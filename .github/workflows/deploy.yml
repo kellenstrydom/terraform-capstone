@@ -42,3 +42,11 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve
         working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Run Ansible playbook
+        run: |
+          ansible-playbook \
+            -i "$INSTANCE_IP," \
+            -u ubuntu \
+            --private-key /tmp/ansible_key.pem \
+            ansible/playbook.yml
