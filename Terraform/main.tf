@@ -13,7 +13,7 @@ variable "compartment_id" {
 
 variable "region" {
   type    = string
-  default = "eu-frankfurt-1"
+  default = "af-johannesburg-1"
 }
 
 variable "ssh_public_key" {
@@ -23,20 +23,19 @@ variable "ssh_public_key" {
 
 provider "oci" {
   region = var.region
-  # auth automatically picked from OCI_* env vars
+  # Auth is picked up from OCI_* env vars set in GitHub Actions
 }
 
 data "oci_identity_availability_domains" "ads" {
   compartment_id = var.compartment_id
 }
 
-# NEW: look up a suitable Ubuntu ARM image for A1 Flex
-data "oci_core_images" "ubuntu_a1" {
+# Look up a recent Ubuntu image for the micro shape
+data "oci_core_images" "ubuntu_micro" {
   compartment_id           = var.compartment_id
   operating_system         = "Canonical Ubuntu"
-  # if you ever get a "no images" error, comment this line out or adjust the version
   operating_system_version = "24.04"
-  shape                    = "VM.Standard.A1.Flex"
+  shape                    = "VM.Standard.E2.1.Micro"
   state                    = "AVAILABLE"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
@@ -45,25 +44,24 @@ data "oci_core_images" "ubuntu_a1" {
 resource "oci_core_instance" "my_first_instance" {
   compartment_id = var.compartment_id
 
-  display_name        = "MyTerraformA1Test"
+  display_name        = "MyTerraformMicro"
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
 
-  # CHANGED: Arm shape
-  shape = "VM.Standard.A1.Flex"
+  # Back to AMD micro
+  shape = "VM.Standard.E2.1.Micro"
 
-shape_config {
-  ocpus         = 1
-  memory_in_gbs = 1
-}
+  # (Optional) You can omit this block for fixed shapes, but it's harmless:
+  shape_config {
+    ocpus         = 1
+    memory_in_gbs = 1
+  }
 
   source_details {
     source_type = "image"
-    # CHANGED: use the image from the data source above
-    source_id   = data.oci_core_images.ubuntu_a1.images[0].id
+    source_id   = data.oci_core_images.ubuntu_micro.images[0].id
   }
 
   create_vnic_details {
-    # same existing subnet – still fine
     subnet_id        = "ocid1.subnet.oc1.af-johannesburg-1.aaaaaaaaedwkg5lzt25pydgityufwigu7vguptfaytnqx3pm5yfd5ip2ntra"
     assign_public_ip = true
   }
